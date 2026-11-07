@@ -1,65 +1,20 @@
 import asyncio
+
 import discord
-from discord.ext import commands
-import time
-import re
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
-from Views.StaffRequestView import RequestState, ModView, MAX_COUNT
-
-GUILD_ID = 1094496767329960016
-CATEGORY_ID = 1094496767988469814
-MOD_ROLE_ID = 1483828119210168474
-EMBED_COLOR = 0xFFB7C5
-
-GAME_ROLES = {
-    "CS2娱乐": 1484990289033695333,
-    "CS2技术": 1484990321157865562,
-    "Valorant娱乐": 1485529439839457280,
-    "Valorant技术": 1485529246108614767,
-    "Apex娱乐": 1484990344608223346,
-    "Apex技术": 1485529959941537943,
-    "LOL娱乐": 1485530210274115734,
-    "LOL技术": 1485530289005400114,
-    "三角洲": 1539276713190629466
-}
-GENDER_ROLES = {
-    "男陪": 1483829216268124252,  
-    "女陪": 1483829514541989960, 
-    "不限": 1483467540263866579
-}
-MOD_CHANNEL_ID = 1501961292611846205
-
-TZ = ZoneInfo("Asia/Kuala_Lumpur")
-
-def parse_time(text: str) -> datetime | None:
-    text = text.strip().lower()
-    now = datetime.now(TZ)
-
-    if text in ("现在", "now", "asap"):
-        return now
-
-    m = re.fullmatch(r"(\d{1,2})(?:[:：.](\d{2}))?\s*(am|pm)?", text)
-    if not m:
-        return None
-
-    hour, minute, ampm = int(m[1]), int(m[2] or 0), m[3]
-    if ampm == "pm" and hour < 12:
-        hour += 12
-    elif ampm == "am" and hour == 12:
-        hour = 0
-    if hour > 23 or minute > 59:
-        return None
-
-    dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if dt <= now:               # already passed today, so assume tomorrow
-        dt += timedelta(days=1)
-    return dt
-
-def has_all_roles(member: discord.Member,requiredRoles) -> bool:
-    return requiredRoles.issubset({r.id for r in member.roles})
-
+from bot.config import (
+    BASE_MATCH_ROLE_ID,
+    CATEGORY_ID,
+    EMBED_COLOR,
+    GAME_ROLES,
+    GENDER_ROLES,
+    MAX_COUNT,
+    MOD_CHANNEL_ID,
+    MOD_ROLE_ID,
+    PRICES_CHANNEL_URL,
+)
+from bot.utils.time_parse import parse_time
+from bot.views.staff_request import ModView, RequestState
 
 
 class RegistrationModal(discord.ui.Modal, title="您的要求"):
@@ -92,7 +47,7 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
                 label="段位",
                 placeholder="e.g GOLD, PLAT",
                 required=True,
-                max_length=10
+                max_length=10,
             )
             self.add_item(self.rank)
 
@@ -100,7 +55,7 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
             label="备注",
             placeholder="特别需求",
             required=True,
-            max_length=100
+            max_length=100,
         )
         self.add_item(self.preferences)
 
@@ -128,13 +83,13 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
 
         existing = discord.utils.get(
             guild.text_channels,
-            topic=f"ticket_owner:{user.id}"
+            topic=f"ticket_owner:{user.id}",
         )
 
         if existing:
             await interaction.response.send_message(
                 f"You already have a ticket: {existing.mention}",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -144,14 +99,14 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
         if not isinstance(category, discord.CategoryChannel):
             await interaction.response.send_message(
                 "Ticket category not found.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
         if mod_role is None:
             await interaction.response.send_message(
                 "Moderator role not found.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -164,19 +119,19 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
                 send_messages=True,
                 read_message_history=True,
                 attach_files=True,
-                embed_links=True
+                embed_links=True,
             ),
             mod_role: discord.PermissionOverwrite(
                 view_channel=True,
                 send_messages=True,
-                read_message_history=True
+                read_message_history=True,
             ),
             guild.me: discord.PermissionOverwrite(
                 view_channel=True,
                 send_messages=True,
                 read_message_history=True,
-                manage_channels=True
-            )
+                manage_channels=True,
+            ),
         }
         dt = parse_time(self.time_input.value)
         if dt is None:
@@ -193,7 +148,7 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
             name=f"ticket-{user.name}".lower()[:90],
             category=category,
             overwrites=overwrites,
-            topic=f"ticket_owner:{user.id}"
+            topic=f"ticket_owner:{user.id}",
         )
 
         # Build the info lines; chat tickets leave out device, game and rank
@@ -222,7 +177,7 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
                 + "\n\n确认没问题的话，点击下方的 「确认资料」 就可以啦～"
                 + "\n\n管理员很快来陪你处理！(๑˃̵ᴗ˂̵)و"
             ),
-            color=0xFFB7C5
+            color=EMBED_COLOR,
         )
 
         await channel.send(
@@ -236,18 +191,28 @@ class RegistrationModal(discord.ui.Modal, title="您的要求"):
                 self.time_input.value,
                 count,
                 steam_game=self.steam_game.value if self.steam_game else None,
-            )
+            ),
         )
 
         await interaction.response.send_message(
             f"Your ticket has been created: {channel.mention}",
-            ephemeral=True
+            ephemeral=True,
         )
 
 
 class CloseTicketView(discord.ui.View):
-    def __init__(self, serviceType, selected_game, selected_gender, message, rank,
-             selected_time, time_input, count, steam_game=None):
+    def __init__(
+        self,
+        serviceType,
+        selected_game,
+        selected_gender,
+        message,
+        rank,
+        selected_time,
+        time_input,
+        count,
+        steam_game=None,
+    ):
         super().__init__(timeout=None)
         self.serviceType = serviceType
         self.selected_game = selected_game
@@ -264,7 +229,7 @@ class CloseTicketView(discord.ui.View):
             discord.ui.Button(
                 label="Prices",
                 style=discord.ButtonStyle.link,
-                url="https://discord.com/channels/1094496767329960016/1483433295399227568"  # GUILD_ID/CHANNEL_ID
+                url=PRICES_CHANNEL_URL,
             )
         )
 
@@ -272,21 +237,22 @@ class CloseTicketView(discord.ui.View):
         label="Confirm Details",
         emoji="✅",
         style=discord.ButtonStyle.primary,
-        custom_id="ticket:confirm"
+        custom_id="ticket:confirm",
     )
     async def confirm_details(self, interaction: discord.Interaction, button: discord.ui.Button):
         required = {
-            1483467540263866579,
-            GAME_ROLES.get(self.selected_game),      # None for 陪聊
+            BASE_MATCH_ROLE_ID,
+            GAME_ROLES.get(self.selected_game),  # None for 陪聊
         }
         if not self.selected_gender == "不限":
             required.add(GENDER_ROLES.get(self.selected_gender))
 
         required.discard(None)  # ignore roles that don't apply
+        required.discard(0)  # ignore unconfigured placeholders
 
-        ##roles required 
+
+        ##roles required
         roles = [interaction.guild.get_role(r) for r in required]
-
 
         ##state for both mod and user message
         state = RequestState(
@@ -309,7 +275,7 @@ class CloseTicketView(discord.ui.View):
         ##mod message
         mod_channel = interaction.guild.get_channel(MOD_CHANNEL_ID)
         state.mod_message = await mod_channel.send(
-            content= f"{', '.join(f'{r.mention}' for r in roles)}",
+            content=f"{', '.join(f'{r.mention}' for r in roles)}",
             embed=state.mod_embed(),
             view=ModView(state),
         )
@@ -318,12 +284,12 @@ class CloseTicketView(discord.ui.View):
         label="Close Ticket",
         emoji="🔒",
         style=discord.ButtonStyle.danger,
-        custom_id="ticket:close"
+        custom_id="ticket:close",
     )
     async def close_ticket(
         self,
         interaction: discord.Interaction,
-        button: discord.ui.Button
+        button: discord.ui.Button,
     ):
         channel = interaction.channel
 
@@ -333,7 +299,6 @@ class CloseTicketView(discord.ui.View):
         # Only the ticket owner or moderators can close it
         topic = channel.topic or ""
         is_owner = topic == f"ticket_owner:{interaction.user.id}"
-
 
         def check_mod(interaction: discord.Interaction):
             mod_role = interaction.guild.get_role(MOD_ROLE_ID)
@@ -352,7 +317,7 @@ class CloseTicketView(discord.ui.View):
             check_mod(interaction)
             await interaction.response.send_message(
                 "You cannot close this ticket.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -363,7 +328,7 @@ class CloseTicketView(discord.ui.View):
                 try:
                     embed = state.mod_embed()
                     embed.set_footer(
-                        text = f"工单已被关闭"
+                        text="工单已被关闭"
                     )
                     # view=None removes the 我来接单 button
                     await state.mod_message.edit(embed=embed, view=None)

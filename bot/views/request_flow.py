@@ -1,7 +1,7 @@
 import discord
-from Views.RegistrationModal import RegistrationModal
 
-EMBED_COLOR = 0xFFB7C5
+from bot.config import EMBED_COLOR
+from bot.views.registration import RegistrationModal
 
 CGameOptions = [
     discord.SelectOption(label="Valorant娱乐", value="Valorant娱乐"),
@@ -152,4 +152,4 @@ class GamesPreferences(discord.ui.View):
                 selected_time=self.selected_time,
                 selected_gender=self.selected_gender,
             )
-        ) 
+        )
